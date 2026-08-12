@@ -942,7 +942,9 @@ These have no `npm run` binding — modes and agents call them with
 | `node process-quality.mjs [--summary]` | Aggregate `[process-friction]` tags from `data/active-interviews.md` per company |
 | `node reserve-report-num.mjs [--count N]` | Atomically reserve report numbers for parallel workers (fixes the #749 race) |
 | `node agent-inbox.mjs add "..."` | Append a request to the queue the agent drains at the next session start |
-| `node generate-latex.mjs <input.tex> [output.pdf]` | Validate and compile a generated `.tex` CV via tectonic or pdflatex |
+| `node generate-latex.mjs <input.tex> [output.pdf]` | Validate and compile a generated `.tex` CV via tectonic or pdflatex (career-ops cv-template path) |
+| `node generate-xelatex-pdf.mjs <input.tex> [output.pdf] [--json]` | Compile user's Obsidian XeLaTeX `.tex` resume via local MiKTeX xelatex (auto-detected). Parses log for errors, page count, overflow, and gaps. Use when `config/profile.yml → cv.output_format: latex`. |
+| `node tex-doctor.mjs <input.tex> [--json]` | AI layout diagnostic for XeLaTeX resumes. Run when compile fails or page count > 1. Emits `PAGE_SPILL`, `MARGIN_OVERFLOW`, `FONT_MISSING` with exact repair recipes. |
 | `node classify-tier.mjs` | Classify a job title into intern / entry / mid / senior |
 | `node plugins.mjs list\|run <id> [hook]` | CLI host for non-provider plugin hooks (see [PLUGINS.md](PLUGINS.md)) |
 | `node plugin-install.mjs` | Clone/scaffold/validate community plugins (allowlisted URLs, pinned SHA) |

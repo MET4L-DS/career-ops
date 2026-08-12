@@ -13,6 +13,7 @@
 import { readFileSync, existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { findXelatexPath } from './generate-xelatex-pdf.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = __dirname;
@@ -31,7 +32,7 @@ if (!existsSync(cvPath)) {
   }
 }
 
-// 2. Check profile.yml exists
+// 2. Check profile.yml exists & LaTeX settings
 const profilePath = join(projectRoot, 'config', 'profile.yml');
 if (!existsSync(profilePath)) {
   errors.push('config/profile.yml not found. Copy from config/profile.example.yml and fill in your details.');
@@ -42,6 +43,28 @@ if (!existsSync(profilePath)) {
     if (!profileContent.includes(field) || profileContent.includes(`"Jane Smith"`)) {
       warnings.push(`config/profile.yml may still have example data. Check field: ${field}`);
       break;
+    }
+  }
+
+  // LaTeX pipeline verification
+  if (profileContent.includes('output_format: latex') || profileContent.includes('latex:')) {
+    const sourceMatch = profileContent.match(/source:\s*["']?([^"'\r\n]+)["']?/);
+    const backendMatch = profileContent.match(/backend_source:\s*["']?([^"'\r\n]+)["']?/);
+    
+    if (sourceMatch && sourceMatch[1] && !sourceMatch[1].startsWith('output/')) {
+      if (!existsSync(sourceMatch[1])) {
+        errors.push(`LaTeX source template not found on disk: ${sourceMatch[1]}`);
+      }
+    }
+    if (backendMatch && backendMatch[1] && !backendMatch[1].startsWith('output/')) {
+      if (!existsSync(backendMatch[1])) {
+        errors.push(`LaTeX backend template not found on disk: ${backendMatch[1]}`);
+      }
+    }
+
+    const xPath = findXelatexPath();
+    if (!xPath) {
+      warnings.push('XeLaTeX compiler is not detected on PATH or MiKTeX install path. Run winget install MiKTeX.MiKTeX.');
     }
   }
 }

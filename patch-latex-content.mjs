@@ -15,16 +15,18 @@
 
 import { readFile, writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, basename } from 'path';
 import { pathToFileURL } from 'url';
-import { applyPatches } from './lib/latex-content.mjs';
+import { applyPatches, buildManifest } from './lib/latex-content.mjs';
 
 async function main() {
-  const args = process.argv.slice(2).filter(a => a !== '--help');
+  const rawArgs = process.argv.slice(2).filter(a => a !== '--help');
+  const noEscape = rawArgs.includes('--no-escape') || rawArgs.includes('--raw');
+  const args = rawArgs.filter(a => !a.startsWith('--'));
   const [sourcePath, patchesPath, outputPath] = args;
 
   if (!sourcePath || !patchesPath || !outputPath) {
-    console.error('Usage: node patch-latex-content.mjs <source.tex> <patches.json> <output.tex>');
+    console.error('Usage: node patch-latex-content.mjs <source.tex> <patches.json> <output.tex> [--no-escape]');
     process.exit(1);
   }
 
@@ -51,12 +53,18 @@ async function main() {
     process.exit(1);
   }
 
-  const patches = Array.isArray(payload.patches) ? payload.patches : [];
-  const slots = Array.isArray(payload.slots) ? payload.slots : [];
+  const patches = Array.isArray(payload.patches) ? payload.patches : (Array.isArray(payload) ? payload : []);
+  let slots = Array.isArray(payload.slots) ? payload.slots : [];
 
+  // Auto-recovery: If slots array is missing in patches.json, extract on-the-fly from source.tex
   if (slots.length === 0) {
-    console.error('patches.json must include a slots array from extract-latex-content.mjs');
-    process.exit(1);
+    const manifest = buildManifest(basename(absSource), tex);
+    if (manifest.supported) {
+      slots = manifest.slots;
+    } else {
+      console.error(`patches.json is missing slots array and source template layout is unsupported: ${manifest.error}`);
+      process.exit(1);
+    }
   }
 
   const missing = patches.filter(p => !slots.some(s => s.id === p.id));
@@ -65,7 +73,7 @@ async function main() {
     process.exit(1);
   }
 
-  const patched = applyPatches(tex, patches, slots);
+  const patched = applyPatches(tex, patches, slots, { escape: !noEscape });
   const outDir = dirname(absOutput);
   if (!existsSync(outDir)) {
     await mkdir(outDir, { recursive: true });

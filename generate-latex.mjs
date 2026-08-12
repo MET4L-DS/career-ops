@@ -18,6 +18,7 @@ import { resolve, basename, dirname, join } from 'path';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
 import { fileURLToPath, pathToFileURL } from 'url';
+import { findXelatexPath } from './generate-xelatex-pdf.mjs';
 
 const MIN_SECTIONS = 4;
 
@@ -132,17 +133,28 @@ export async function compileLatexFile(absPath, content, outputPath, compileOnly
   }
 
   let engine = null;
-  for (const candidate of ['tectonic', 'pdflatex']) {
-    try {
-      execFileSync(candidate, ['--version'], { stdio: 'pipe' });
-      engine = candidate;
-      break;
-    } catch { /* not found */ }
+  let engineBin = null;
+  for (const candidate of ['tectonic', 'xelatex', 'pdflatex']) {
+    if (candidate === 'xelatex') {
+      const xPath = findXelatexPath();
+      if (xPath) {
+        engine = 'xelatex';
+        engineBin = xPath;
+        break;
+      }
+    } else {
+      try {
+        execFileSync(candidate, ['--version'], { stdio: 'pipe' });
+        engine = candidate;
+        engineBin = candidate;
+        break;
+      } catch { /* not found */ }
+    }
   }
 
   if (!engine) {
     report.compiled = false;
-    report.compileError = 'No LaTeX engine found. Install tectonic (brew install tectonic) or pdflatex.';
+    report.compileError = 'No LaTeX engine found. Install MiKTeX (winget install MiKTeX.MiKTeX), tectonic, or pdflatex.';
     return report;
   }
 
@@ -159,21 +171,21 @@ export async function compileLatexFile(absPath, content, outputPath, compileOnly
 
   try {
     if (engine === 'tectonic') {
-      execFileSync('tectonic', ['--outdir', texDir, compilePath], {
+      execFileSync(engineBin, ['--outdir', texDir, compilePath], {
         cwd: texDir,
         stdio: 'pipe',
         timeout: 120_000,
       });
     } else {
-      const pdflatexArgs = [
-        '-no-shell-escape',
+      const latexArgs = [
         '-interaction=nonstopmode',
         '-halt-on-error',
         `-output-directory=${texDir}`,
         absPath,
       ];
-      execFileSync('pdflatex', pdflatexArgs, { cwd: texDir, stdio: 'pipe', timeout: 120_000 });
-      execFileSync('pdflatex', pdflatexArgs, { cwd: texDir, stdio: 'pipe', timeout: 120_000 });
+      if (engine === 'pdflatex') latexArgs.unshift('-no-shell-escape');
+      execFileSync(engineBin, latexArgs, { cwd: texDir, stdio: 'pipe', timeout: 120_000 });
+      execFileSync(engineBin, latexArgs, { cwd: texDir, stdio: 'pipe', timeout: 120_000 });
     }
 
     report.compiled = true;

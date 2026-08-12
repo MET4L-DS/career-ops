@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import { discoverPlugins, pluginRoots, pluginStatus } from './plugins/_engine.mjs';
 import { resolveExtractorMode } from './browser-extract.mjs';
 import { parseConfigByExtension } from './jsonc-parse.mjs';
+import { findXelatexPath } from './generate-xelatex-pdf.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -340,6 +341,26 @@ function checkFonts() {
   return { pass: true, label: 'Fonts directory ready' };
 }
 
+function checkLatexEngine(root) {
+  const profilePath = join(root, 'config', 'profile.yml');
+  if (!existsSync(profilePath)) return null;
+  try {
+    const content = readFileSync(profilePath, 'utf-8');
+    if (content.includes('output_format: latex') || content.includes('latex:')) {
+      const xPath = findXelatexPath();
+      if (xPath) {
+        return { pass: true, label: `LaTeX engine ready: XeLaTeX (${xPath})` };
+      }
+      return {
+        warn: true,
+        label: 'LaTeX resume generation enabled, but XeLaTeX executable not detected',
+        fix: ['Install MiKTeX on Windows: winget install MiKTeX.MiKTeX'],
+      };
+    }
+  } catch { /* ignore parse errors */ }
+  return null;
+}
+
 function checkAutoDir(name) {
   const dirPath = join(projectRoot, name);
   if (existsSync(dirPath)) {
@@ -457,6 +478,7 @@ async function main() {
     checkScanExtractor(projectRoot),
     ...USER_LAYER_PREREQS.map(checkPrereq),
     checkFonts(),
+    checkLatexEngine(projectRoot),
     checkAutoDir('data'),
     checkPipelineFile(),
     checkAutoDir('output'),

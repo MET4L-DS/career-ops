@@ -9,13 +9,13 @@
      the PDF pipeline injects as a later :root block. Defaults below reproduce the
      original hardcoded values, so a profile without a `style:` block is unchanged. */
   :root {
-    --accent-color: hsl(187 74% 32%);
-    --font-family: "Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif;
-    --font-size: 11px;
+    --accent-color: #1f3864;
+    --font-family: "Carlito", "Liberation Sans", 'Helvetica Neue', Arial, 'DejaVu Sans', sans-serif;
+    --font-size: 10px;
     /* Matches generate-pdf.mjs's PDF_PAGE_MARGIN — the actual PDF page margin
        comes from the later @page rule injectPrintPageCss appends (which reads
        this same variable), so this default must match it exactly. */
-    --page-margin: 0.6in;
+    --page-margin: 0.35in 0.55in;
   }
   @page { margin: var(--page-margin); }
 
@@ -51,7 +51,7 @@
   body {
     font-family: var(--font-family);
     font-size: var(--font-size);
-    line-height: 1.5;
+    line-height: 1.25;
     color: #1a1a2e;
     background: #ffffff;
     padding: 0;
@@ -65,38 +65,40 @@
     width: 100%;
     max-width: {{PAGE_WIDTH}};
     margin: 0 auto;
-    padding: 2px 0;
+    padding: 0;
   }
 
   /* === HEADER === */
   .header {
-    margin-bottom: 20px;
+    margin-bottom: 4px;
+    text-align: center;
   }
 
   .header h1 {
     font-family: var(--font-family);
-    font-size: 28px;
+    font-size: 22px;
     font-weight: 700;
-    color: #1a1a2e;
+    color: var(--accent-color);
     letter-spacing: -0.02em;
-    margin-bottom: 6px;
+    margin-bottom: 2px;
     line-height: 1.1;
   }
 
   .header-gradient {
-    height: 2px;
-    background: linear-gradient(to right, var(--accent-color), hsl(270, 70%, 45%));
+    height: 1px;
+    background: #808080;
     border-radius: 1px;
-    margin-bottom: 10px;
+    margin-bottom: 2px;
   }
 
   .contact-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 14px;
+    justify-content: center;
+    gap: 2px 8px;
     font-family: var(--font-family);
-    font-size: 10.5px;
-    line-height: 1.4;
+    font-size: 9px;
+    line-height: 1.15;
     color: #555;
   }
 
@@ -131,26 +133,26 @@
 
   /* === SECTIONS === */
   .section {
-    margin-bottom: 18px;
+    margin-bottom: 6px;
   }
 
   .section-title {
     font-family: var(--font-family);
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--accent-color);
     border-bottom: 1.5px solid #e2e2e2;
-    padding-bottom: 4px;
-    margin-bottom: 10px;
+    padding-bottom: 1px;
+    margin-bottom: 2px;
     line-height: 1.2;
   }
 
   /* === PROFESSIONAL SUMMARY === */
   .summary-text {
     font-size: var(--font-size);
-    line-height: 1.7;
+    line-height: 1.22;
     color: #2f2f2f;
   }
 
@@ -184,7 +186,7 @@
 
   /* === WORK EXPERIENCE === */
   .job {
-    margin-bottom: 14px;
+    margin-bottom: 5px;
   }
 
   .job-header {
@@ -192,18 +194,18 @@
     justify-content: space-between;
     align-items: baseline;
     gap: 12px;
-    margin-bottom: 4px;
+    margin-bottom: 1px;
   }
 
   .job-company {
     font-family: var(--font-family);
-    font-size: 12.5px;
+    font-size: 10.5px;
     font-weight: 600;
-    color: hsl(270, 70%, 45%);
+    color: #323232;
   }
 
   .job-period {
-    font-size: 10.5px;
+    font-size: 9px;
     color: #777;
     white-space: nowrap;
   }
@@ -212,24 +214,24 @@
     font-size: var(--font-size);
     font-weight: 600;
     color: #333;
-    margin-bottom: 6px;
+    margin-bottom: 1px;
   }
 
   .job-location {
-    font-size: 10px;
+    font-size: 9px;
     color: #888;
   }
 
   .job ul {
-    padding-left: 18px;
-    margin-top: 6px;
+    padding-left: 14px;
+    margin-top: 1px;
   }
 
   .job li {
-    font-size: 10.5px;
-    line-height: 1.6;
+    font-size: 9.2px;
+    line-height: 1.2;
     color: #333;
-    margin-bottom: 4px;
+    margin-bottom: 1px;
   }
 
   .job li strong {
@@ -238,14 +240,14 @@
 
   /* === PROJECTS === */
   .project {
-    margin-bottom: 12px;
+    margin-bottom: 4px;
   }
 
   .project-title {
     font-family: var(--font-family);
-    font-size: 11.5px;
+    font-size: 10.3px;
     font-weight: 600;
-    color: hsl(270, 70%, 45%);
+    color: #323232;
   }
 
   .project-badge {
@@ -259,21 +261,21 @@
   }
 
   .project-desc {
-    font-size: 10.5px;
+    font-size: 9.2px;
     color: #444;
-    margin-top: 3px;
-    line-height: 1.55;
+    margin-top: 1px;
+    line-height: 1.2;
   }
 
   .project-tech {
-    font-size: 9.5px;
+    font-size: 8.8px;
     color: #888;
-    margin-top: 3px;
+    margin-top: 1px;
   }
 
   /* === EDUCATION === */
   .edu-item {
-    margin-bottom: 8px;
+    margin-bottom: 2px;
   }
 
   .edu-header {
@@ -295,7 +297,7 @@
   }
 
   .edu-year {
-    font-size: 10px;
+    font-size: 9px;
     color: #777;
     white-space: nowrap;
   }
@@ -330,7 +332,7 @@
   }
 
   .cert-org {
-    color: hsl(270, 70%, 45%);
+    color: #323232;
     white-space: nowrap;
   }
 
@@ -358,17 +360,17 @@
   .award-item > * {
     display: table-cell;
     vertical-align: baseline;
-    padding-bottom: 6px;
+    padding-bottom: 1px;
   }
 
   .award-title {
-    font-size: 10.5px;
+    font-size: 9.2px;
     font-weight: 500;
     color: #333;
   }
 
   .award-org {
-    color: hsl(270, 70%, 45%);
+    color: #323232;
     white-space: nowrap;
   }
 
@@ -388,14 +390,14 @@
   }
 
   .skill-item {
-    font-size: 10.5px;
+    font-size: 9.2px;
     color: #444;
   }
 
   .skill-category {
     font-weight: 600;
     color: #333;
-    font-size: 10.5px;
+    font-size: 9.2px;
   }
 
   /* === PRINT === */
@@ -639,12 +641,10 @@
     <div class="summary-text">{{SUMMARY_TEXT}}</div>
   </div>
 
-  <!-- CORE COMPETENCIES -->
+  <!-- SKILLS -->
   <div class="section">
-    <div class="section-title">{{SECTION_COMPETENCIES}}</div>
-    <div class="competencies-grid">
-      {{COMPETENCIES}}
-    </div>
+    <div class="section-title">{{SECTION_SKILLS}}</div>
+    {{SKILLS}}
   </div>
 
   <!-- WORK EXPERIENCE -->
@@ -675,12 +675,6 @@
   <div class="section">
     <div class="section-title">{{SECTION_AWARDS}}</div>
     <div class="award-table">{{AWARDS}}</div>
-  </div>
-
-  <!-- SKILLS -->
-  <div class="section">
-    <div class="section-title">{{SECTION_SKILLS}}</div>
-    {{SKILLS}}
   </div>
 
   <!-- END -->

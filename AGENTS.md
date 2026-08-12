@@ -90,7 +90,9 @@ AI-powered, CLI-agnostic job search automation: pipeline tracking, offer evaluat
 | `interview-prep/story-bank.md` | Accumulated STAR+R stories |
 | `interview-prep/{company}-{role}.md` | Company-specific interview intel |
 | `generate-pdf.mjs` | Playwright: HTML to PDF |
-| `generate-latex.mjs` | LaTeX CV validator + pdflatex compiler |
+| `generate-latex.mjs` | LaTeX CV validator + pdflatex compiler (career-ops `cv-template.tex` path) |
+| `generate-xelatex-pdf.mjs` | **XeLaTeX PDF compiler for user's Obsidian `.tex` resumes.** Finds `xelatex` binary (MiKTeX auto-detected), runs 2-pass compile, parses `.log` for errors/page-count/overflow/gaps. Usage: `node generate-xelatex-pdf.mjs <input.tex> [output.pdf] [--json]`. Returns structured JSON with `success`, `pageCount`, `overflowCount`. Use this instead of `generate-latex.mjs` when `config/profile.yml → cv.output_format: latex` and `latex.source` is set. |
+| `tex-doctor.mjs` | **AI hand-holding layout diagnostic for XeLaTeX resumes.** Run when compile fails or page count > 1. Returns `PAGE_SPILL`, `MARGIN_OVERFLOW`, or `FONT_MISSING` diagnostics with exact step-by-step repair recipes (adjust `\linespread`, `\titlespacing`, or font fallback). Usage: `node tex-doctor.mjs <input.tex> [--json]`. |
 | `scan.mjs` | Zero-token portal scanner (Greenhouse/Ashby/Lever APIs, zero LLM cost) |
 | `scan-ats-full.mjs` | Reverse-ATS keyword-first scanner over full public ATS datasets (Greenhouse/Lever/Ashby/Workday/iCIMS), filtered by portals.yml `title_filter`/`location_filter` — no company list needed; checkpoints every 500 companies, `--resume` continues an interrupted sweep |
 | `scan-interamt.mjs` | Playwright browser scanner for Interamt.de (German public sector portal — Apache Wicket, no REST API) |
