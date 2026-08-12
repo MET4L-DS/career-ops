@@ -15,6 +15,7 @@ import { discoverPlugins, pluginRoots, pluginStatus } from './plugins/_engine.mj
 import { resolveExtractorMode } from './browser-extract.mjs';
 import { parseConfigByExtension } from './jsonc-parse.mjs';
 import { findXelatexPath } from './generate-xelatex-pdf.mjs';
+import { execFileSync } from 'child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -408,10 +409,16 @@ function checkLatexEngine(root) {
       if (xPath) {
         return { pass: true, label: `LaTeX engine ready: XeLaTeX (${xPath})` };
       }
+      for (const candidate of ['tectonic', 'pdflatex']) {
+        try {
+          execFileSync(candidate, ['--version'], { stdio: 'pipe' });
+          return { pass: true, label: `LaTeX engine ready: ${candidate}` };
+        } catch { /* not found */ }
+      }
       return {
         warn: true,
-        label: 'LaTeX resume generation enabled, but XeLaTeX executable not detected',
-        fix: ['Install MiKTeX on Windows: winget install MiKTeX.MiKTeX'],
+        label: 'LaTeX resume generation enabled, but no LaTeX engine (XeLaTeX, tectonic, or pdflatex) detected',
+        fix: ['Install MiKTeX on Windows: winget install MiKTeX.MiKTeX', 'Or install tectonic: brew install tectonic'],
       };
     }
   } catch { /* ignore parse errors */ }

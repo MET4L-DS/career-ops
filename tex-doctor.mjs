@@ -135,11 +135,17 @@ export async function analyzeAndAdvise(inputTexPath) {
 
   // 3. Font Missing Error
   if (logData.fontWarnings.length > 0 || (compileResult.compileError?.includes('font'))) {
+    let currentFont = 'Carlito';
+    try {
+      const fontMatch = (await readFile(absTex, 'utf-8')).match(/\\setmainfont\{([^}]+)\}/);
+      if (fontMatch) currentFont = fontMatch[1];
+    } catch { /* ignore */ }
+
     report.issues.push({
       type: 'FONT_MISSING',
       severity: 'HIGH',
       fontWarnings: logData.fontWarnings,
-      message: 'Fontspec failed to locate the main font (Carlito).',
+      message: `Fontspec failed to locate the main font (${currentFont}).`,
     });
 
     report.recipes.push({
@@ -147,9 +153,9 @@ export async function analyzeAndAdvise(inputTexPath) {
       steps: [
         {
           action: 'Replace main font setting in preamble',
-          target: '\\setmainfont{Carlito}',
+          target: `\\setmainfont{${currentFont}}`,
           replacement: '\\setmainfont{Arial} % or \\setmainfont{Liberation Sans}',
-          explanation: 'Carlito is standard on Windows/Overleaf, but Arial is universally present on all systems.',
+          explanation: `${currentFont} was not found by XeLaTeX. Arial is universally present on all systems.`,
         },
       ],
     });
@@ -179,7 +185,7 @@ async function main() {
 
   if (jsonOutput) {
     console.log(JSON.stringify(report, null, 2));
-    process.exit(0);
+    process.exit(report.status === 'PERFECT_FIT' ? 0 : 1);
   }
 
   console.log(`\n==================================================`);
@@ -220,6 +226,7 @@ async function main() {
       console.log('');
     }
   }
+  process.exit(report.status === 'PERFECT_FIT' ? 0 : 1);
 }
 
 // ✅ Correct ES module main-detection: static pathToFileURL import, no top-level await

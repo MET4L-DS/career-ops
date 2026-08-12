@@ -55,7 +55,7 @@ export function validateLatexContent(content, compileOnly) {
     };
   }
 
-  const sectionCount = (content.match(/\\section\{/g) || []).length;
+  const sectionCount = (content.match(/\\section\*?\{/g) || []).length;
   if (sectionCount < MIN_SECTIONS) {
     issues.push(`Expected at least ${MIN_SECTIONS} \\section{} blocks (Education, Work Experience, Projects, Skills — or localized equivalents), found ${sectionCount}`);
   }
@@ -220,6 +220,7 @@ export async function compileLatexFile(absPath, content, outputPath, compileOnly
         sizeKB: parseFloat((pdfStat.size / 1024).toFixed(1)),
       };
     } catch (err) {
+      report.compiled = false;
       report.postCompileError = `Failed to finalize PDF: ${err.message}`;
     }
 

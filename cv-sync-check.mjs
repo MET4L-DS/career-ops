@@ -11,7 +11,7 @@
  */
 
 import { readFileSync, existsSync, statSync } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { findXelatexPath } from './generate-xelatex-pdf.mjs';
 
@@ -52,12 +52,14 @@ if (!existsSync(profilePath)) {
     const backendMatch = profileContent.match(/backend_source:\s*["']?([^"'\r\n]+)["']?/);
     
     if (sourceMatch && sourceMatch[1] && !sourceMatch[1].startsWith('output/')) {
-      if (!existsSync(sourceMatch[1])) {
+      const absSrc = resolve(projectRoot, sourceMatch[1]);
+      if (!existsSync(absSrc)) {
         errors.push(`LaTeX source template not found on disk: ${sourceMatch[1]}`);
       }
     }
     if (backendMatch && backendMatch[1] && !backendMatch[1].startsWith('output/')) {
-      if (!existsSync(backendMatch[1])) {
+      const absBackend = resolve(projectRoot, backendMatch[1]);
+      if (!existsSync(absBackend)) {
         errors.push(`LaTeX backend template not found on disk: ${backendMatch[1]}`);
       }
     }

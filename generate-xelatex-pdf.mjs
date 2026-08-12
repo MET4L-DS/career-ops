@@ -11,7 +11,7 @@ import { readFile, writeFile, rm, stat } from 'fs/promises';
 import { resolve, dirname, basename, join } from 'path';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';
-import { pathToFileURL } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 /**
  * Locate xelatex executable on PATH or common installation paths.
@@ -77,13 +77,20 @@ export function parseLatexLog(logContent) {
 
     // Check for Overfull \hbox (Overflow)
     if (line.includes('Overfull \\hbox')) {
-      const match = line.match(/Overfull \\hbox \(([^)]+)\) in paragraph at lines (\d+)--(\d+)/) ||
-                    line.match(/Overfull \\hbox \(([^)]+)\) at line (\d+)/);
-      if (match) {
+      const matchRange = line.match(/Overfull \\hbox \(([^)]+)\) in paragraph at lines (\d+)--(\d+)/);
+      const matchLine = line.match(/Overfull \\hbox \(([^)]+)\) at line (\d+)/);
+      if (matchRange) {
         overflows.push({
-          ptExcess: match[1],
-          startLine: parseInt(match[2] || match[1], 10),
-          endLine: parseInt(match[3] || match[2] || match[1], 10),
+          ptExcess: matchRange[1],
+          startLine: parseInt(matchRange[2], 10),
+          endLine: parseInt(matchRange[3], 10),
+          raw: line,
+        });
+      } else if (matchLine) {
+        overflows.push({
+          ptExcess: matchLine[1],
+          startLine: parseInt(matchLine[2], 10),
+          endLine: parseInt(matchLine[2], 10),
           raw: line,
         });
       } else {
@@ -91,12 +98,12 @@ export function parseLatexLog(logContent) {
       }
     }
 
-    // Check for Underfull \vbox (Large vertical gaps)
-    if (line.includes('Underfull \\vbox')) {
-      const match = line.match(/Underfull \\vbox \(([^)]+)\) has occurred while \\output is active/);
+    // Check for Underfull \vbox or Underfull \hbox (Spurious spacing gaps)
+    if (line.includes('Underfull \\vbox') || line.includes('Underfull \\hbox')) {
+      const match = line.match(/Underfull \\(vbox|hbox) \(([^)]+)\)/);
       gaps.push({
-        type: 'vbox',
-        badness: match ? match[1] : 'unknown',
+        type: match ? match[1] : 'box',
+        badness: match ? match[2] : 'unknown',
         raw: line,
       });
     }
@@ -162,7 +169,7 @@ export async function compileXelatex(inputTexPath, outputPdfPath = null, opts = 
     // Second pass for layout stability
     execFileSync(xelatexBin, args, { cwd: texDir, stdio: 'pipe', timeout: 120000 });
   } catch (err) {
-    compileError = err.message;
+    compileError = err.stdout ? err.stdout.toString() : err.message;
   }
 
   const logPath = join(texDir, `${texBase}.log`);
@@ -201,9 +208,44 @@ export async function compileXelatex(inputTexPath, outputPdfPath = null, opts = 
 
   const success = pdfExists && logDiagnostics.errors.length === 0;
 
+  let syncedPdfPath = null;
+  let syncedTexPath = null;
+
+  // Sync generated .tex and .pdf to Obsidian resumes folder if configured
+  let syncDir = opts.syncDir || null;
+  const projectRoot = dirname(fileURLToPath(import.meta.url));
+
+  if (!syncDir) {
+    const profilePath = join(projectRoot, 'config', 'profile.yml');
+    if (existsSync(profilePath)) {
+      try {
+        const profContent = await readFile(profilePath, 'utf-8');
+        const syncMatch = profContent.match(/sync_dir:\s*["']?([^"'\r\n]+)["']?/);
+        if (syncMatch && syncMatch[1]) syncDir = syncMatch[1];
+      } catch { /* ignore */ }
+    }
+  }
+
+  if (success && syncDir) {
+    try {
+      const absSyncDir = resolve(syncDir);
+      if (!existsSync(absSyncDir)) mkdirSync(absSyncDir, { recursive: true });
+      syncedPdfPath = join(absSyncDir, `${texBase}.pdf`);
+      syncedTexPath = join(absSyncDir, `${texBase}.tex`);
+      await copyFile(targetPdf, syncedPdfPath);
+      if (existsSync(absTex)) {
+        await copyFile(absTex, syncedTexPath);
+      }
+    } catch (err) {
+      logDiagnostics.warnings.push(`Sync to ${syncDir} failed: ${err.message}`);
+    }
+  }
+
   return {
     success,
     pdfPath: success ? targetPdf : null,
+    syncedPdfPath,
+    syncedTexPath,
     sizeKB: pdfSizeKB,
     pageCount: logDiagnostics.pageCount,
     isOnePage: logDiagnostics.pageCount === 1,
@@ -228,7 +270,10 @@ async function main() {
     process.exit(1);
   }
 
-  const result = await compileXelatex(inputTex, outputPdf, { keepAux });
+  const syncDirArg = args.find(a => a.startsWith('--sync-dir='));
+  const syncDir = syncDirArg ? syncDirArg.split('=').slice(1).join('=') : null;
+
+  const result = await compileXelatex(inputTex, outputPdf, { keepAux, syncDir });
 
   if (jsonOutput) {
     console.log(JSON.stringify(result, null, 2));
@@ -237,6 +282,9 @@ async function main() {
 
   if (result.success) {
     console.log(`✅ PDF generated successfully: ${result.pdfPath}`);
+    if (result.syncedPdfPath) {
+      console.log(`🔄 Synced to Obsidian resumes: ${result.syncedPdfPath}`);
+    }
     console.log(`📄 Pages: ${result.pageCount} ${result.isOnePage ? '(Perfect 1-page fit!)' : '⚠️ WARNING: Exceeds 1 page target!'}`);
     console.log(`📦 Size: ${result.sizeKB} KB`);
     if (result.overflowCount > 0) {

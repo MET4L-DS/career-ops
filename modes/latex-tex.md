@@ -36,6 +36,7 @@ If none exist, stop and ask the user to add their `.tex` file or set `latex.sour
 latex:
   source: "D:/Obsidian D/Interview/resumes/resume-full-stack-2.tex"
   backend_source: "D:/Obsidian D/Interview/resumes/resume-backend.tex"
+  sync_dir: "D:/Obsidian D/Interview/resumes"
   compiler: xelatex
   pdf_in_overleaf: true
   output_dir: output/

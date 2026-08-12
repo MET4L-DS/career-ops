@@ -69,7 +69,8 @@ async function main() {
 
   const missing = patches.filter(p => !slots.some(s => s.id === p.id));
   if (missing.length > 0) {
-    console.error(`Unknown patch ids: ${missing.map(p => p.id).join(', ')}`);
+    const validIds = slots.map(s => s.id).join(', ');
+    console.error(`Unknown patch ids: ${missing.map(p => p.id).join(', ')}\nValid slot ids in this template are: ${validIds}`);
     process.exit(1);
   }
 
