@@ -65,7 +65,8 @@ export function readInbox(): InboxJob[] {
   const md = read("data/pipeline.md");
   if (!md) return [];
   const jobs: InboxJob[] = [];
-  for (const line of md.split("\n")) {
+  for (const rawLine of md.split("\n")) {
+    const line = rawLine.trim();
     const m = line.match(/^\s*-\s*\[([ xX])\]\s*(.+)$/);
     if (!m) continue;
     const all = m[2].split("|").map((s) => s.trim());
@@ -91,7 +92,43 @@ export function readInbox(): InboxJob[] {
       postedAt: posted && /^\d{4}-\d{2}-\d{2}$/.test(posted) ? posted : undefined,
     });
   }
-  return jobs;
+
+  const YOE_EXCLUDE_RE = /(?:[3-9]|\d{2})\+?\s*(?:-\s*(?:[4-9]|\d{2}))?\s*(?:years?|yrs?|yoe)|(?:3|4|5|6|7|8|9|10)\s*-\s*\d+\s*(?:years?|yrs?|yoe)|(?:3-5|3-6|4-6|5-8|3-4|4-5|5-10|6-10)\s*(?:years?|yrs?|yoe)|(?:3|4|5|6|7|8|9|10)\s*\+\s*years?/i;
+  const SENIOR_TIER_RE = /\b(senior|sr|sr\.|staff|principal|lead|manager|director|head of|vp|architect|lmts|smts|pmts|l3|l4|l5|l6|e3|e4|e5|e6|m1|m2)\b|\b(engineer|developer|associate|level|swe|sde|backend|frontend|fullstack)\s+(?:iii|iv|v|vi|3|4|5|6|ii|2)\b|-(?:senior|sr|iii|iv|v|3|4|5)-|\b(?:iii|iv|v|vi)\b/i;
+  const MUST_BE_TECH_RE = /\b(software|developer|backend|frontend|fullstack|full-stack|full stack|web|python|node|react|ai|genai|llm|machine learning|ml|devops|cloud|data engineer|rust|c\+\+|golang|go|platform engineer|app engineer|technical|technology|systems? admin)\b/i;
+  const NON_DEV_DOMAINS = [
+    'tax', 'private client', 'wealth management', 'finance', 'accounting', 'audit', 'assurance', 'compliance',
+    'customer success', 'customer support', 'account manager', 'program manager', 'product manager', 'project manager', 'project coordinator',
+    'it analyst', 'it support', 'helpdesk', 'desktop support', 'service desk', 'technical support', 'qa analyst', 'business analyst',
+    'recruiter', 'talent acquisition', 'hr associate', 'human resources', 'marketing', 'sales', 'business development',
+    'operations associate', 'legal', 'paralegal', 'underwriter', 'insurance', 'claims', 'consultant',
+    'digital customer success', 'supply chain', 'commercial associate', 'transaction services', 'risk managed services',
+    'sap ', 'sap_', 'sap-', 'indirect tax', 'idt', 'trs', 'guidewire', 'technologist'
+  ];
+
+  const seenKey = new Set<string>();
+  const dedupedJobs: InboxJob[] = [];
+  for (const job of jobs) {
+    const roleLower = (job.role || "").toLowerCase();
+    const companyLower = (job.company || "").toLowerCase();
+    const fullText = `${job.url} ${companyLower} ${roleLower} ${job.location || ""}`.toLowerCase();
+
+    if (NON_DEV_DOMAINS.some(d => roleLower.includes(d) || fullText.includes(d))) continue;
+    if (SENIOR_TIER_RE.test(fullText) || YOE_EXCLUDE_RE.test(fullText)) continue;
+    if (!MUST_BE_TECH_RE.test(roleLower) && !MUST_BE_TECH_RE.test(companyLower)) continue;
+
+    const normRole = roleLower
+      .replace(/_[0-9a-z]+-?[0-9]*$/i, "")
+      .replace(/\s*__\s*.*/, "")
+      .replace(/\s*–\s*.*/, "")
+      .trim();
+    const key = `${companyLower}::${normRole}::${(job.location || "").toLowerCase()}`;
+    if (seenKey.has(key) || seenKey.has(job.url)) continue;
+    seenKey.add(key);
+    seenKey.add(job.url);
+    dedupedJobs.push(job);
+  }
+  return dedupedJobs;
 }
 
 /**

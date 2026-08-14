@@ -130,13 +130,13 @@ async function headedBrowser(): Promise<Browser> {
     nb = await chromium.launch({
       channel: "chrome",
       headless: false,
-      args: ["--window-position=-3200,-3200", "--window-size=1280,940"], // off-screen during fill; moved on-screen at handoff
+      args: ["--window-position=50,50", "--window-size=1280,900", "--start-maximized"], // on-screen, normal maximizable window
     });
   } catch {
     // No system Google Chrome → fall back to Playwright's bundled Chromium if
     // present; otherwise a clear, actionable error.
     try {
-      nb = await chromium.launch({ headless: false, args: ["--window-position=-3200,-3200", "--window-size=1280,940"] });
+      nb = await chromium.launch({ headless: false, args: ["--window-position=50,50", "--window-size=1280,900", "--start-maximized"] });
     } catch {
       throw new Error("The apply feature needs Google Chrome. Install Chrome (or run: npx playwright install chromium) and try again.");
     }
@@ -527,7 +527,7 @@ export async function handoffSession(id: string): Promise<void> {
     const { windowId } = (await cdp.send("Browser.getWindowForTarget")) as { windowId: number };
     await cdp.send("Browser.setWindowBounds", {
       windowId,
-      bounds: { left: 80, top: 60, width: 1280, height: 920, windowState: "normal" },
+      bounds: { windowState: "maximized" },
     });
     await cdp.detach().catch(() => {});
   } catch {

@@ -6,6 +6,7 @@ import { useApply } from "@/components/apply/apply-provider";
 import type { ApplyField } from "@/lib/apply/extract";
 import { cn } from "@/lib/cn";
 import { Fragment, useEffect, useRef, useState } from "react";
+import { WorkdayPanel, isWorkdayUrl } from "@/components/apply/workday-panel";
 
 // Co-located UI animations (HMR-proof vs Tailwind v4's stale globals.css):
 // field cascade-in, per-field "just drafted" flash, skeleton shimmer, hero orb.
@@ -50,19 +51,23 @@ export function ApplyView() {
           </button>
         </div>
         {a.error && (
-          <div className="mt-4 max-w-2xl rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
-              <div className="min-w-0">
-                <p className="text-sm text-amber-800 dark:text-amber-300">{a.error}</p>
-                {a.url && /^https?:\/\//.test(a.url) && (
-                  <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
-                    Open the form directly <ExternalLink className="size-3" />
-                  </a>
-                )}
+          isWorkdayUrl(a.url) ? (
+            <WorkdayPanel url={a.url} company={a.company || undefined} />
+          ) : (
+            <div className="mt-4 max-w-2xl rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3.5">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                <div className="min-w-0">
+                  <p className="text-sm text-amber-800 dark:text-amber-300">{a.error}</p>
+                  {a.url && /^https?:\/\//.test(a.url) && (
+                    <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline">
+                      Open the form directly <ExternalLink className="size-3" />
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )
         )}
       </div>
     );

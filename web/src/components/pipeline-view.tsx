@@ -149,10 +149,17 @@ export function PipelineView({
               : t === "ALL"
                 ? applications.length
                 : applications.filter((r) => canonStatus(r.status).includes(t)).length;
+          const label = t === "INBOX" ? "INBOX (Pending)" : t === "ALL" ? "TRACKED ALL" : t;
+          const tooltip = t === "INBOX" 
+            ? "Un-evaluated pending jobs from data/pipeline.md" 
+            : t === "ALL"
+            ? "All tracked applications from data/applications.md"
+            : `Tracked applications with status ${t}`;
           return (
             <button
               key={t}
               onClick={() => setParams({ tab: t === "INBOX" ? null : t })}
+              title={tooltip}
               className={cn(
                 "-mb-px inline-flex items-center justify-center border-b-2 px-3 py-2 text-xs font-medium transition-colors max-sm:min-h-[44px]",
                 tab === t
@@ -160,7 +167,7 @@ export function PipelineView({
                   : "border-transparent text-muted hover:text-foreground",
               )}
             >
-              {t} <span className="text-faint tabular-nums">{count}</span>
+              {label} <span className="ml-1.5 text-faint tabular-nums">({count})</span>
             </button>
           );
         })}

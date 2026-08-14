@@ -7,7 +7,7 @@
  *   node generate-xelatex-pdf.mjs <input.tex> [output.pdf] [--keep-aux] [--json]
  */
 
-import { readFile, writeFile, rm, stat } from 'fs/promises';
+import { readFile, writeFile, rm, stat, copyFile } from 'fs/promises';
 import { resolve, dirname, basename, join } from 'path';
 import { execFileSync } from 'child_process';
 import { existsSync, mkdirSync } from 'fs';

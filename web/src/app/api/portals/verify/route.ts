@@ -18,7 +18,7 @@ const STATUS: Record<string, "live" | "empty" | "broken" | "skipped"> = {
   "➖": "skipped",
 };
 
-export async function GET() {
+export async function GET(req: Request) {
   const root = careerOpsRoot();
   const verifyPortals = rootScript("verify-portals");
   if (!fs.existsSync(verifyPortals)) {
@@ -26,6 +26,36 @@ export async function GET() {
   }
   if (!fs.existsSync(path.join(root, "portals.yml"))) {
     return Response.json({ available: true, configured: false, companies: [] });
+  }
+
+  const url = new URL(req.url);
+  const forceRefresh = url.searchParams.get("refresh") === "true";
+  const healthJsonPath = path.join(root, "data", "portal-health.json");
+
+  if (!forceRefresh && fs.existsSync(healthJsonPath)) {
+    try {
+      const cachedRaw = fs.readFileSync(healthJsonPath, "utf-8");
+      const cached = JSON.parse(cachedRaw);
+      if (Array.isArray(cached?.results)) {
+        const companies = cached.results.map((r: { name: string; status: string; ats?: string; slug?: string; provider?: string; jobCount?: number; partial?: boolean; reason?: string; suggested?: { ats: string; slug: string } }) => {
+          const source = r.ats ? `${r.ats}/${r.slug}` : (r.provider || '?');
+          let detail = '';
+          if (r.status === 'live') {
+            detail = r.partial ? `${source} (first page live)` : `${source} (${r.jobCount} live)`;
+          } else if (r.status === 'empty') {
+            detail = `${source} (live but empty)`;
+          } else if (r.status === 'missing') {
+            detail = `${source} (unresolved) — ${r.reason || 'unresolved'}`;
+            if (r.suggested) detail += ` → try ${r.suggested.ats}/${r.suggested.slug}`;
+          } else {
+            detail = r.reason || '';
+          }
+          const mappedStatus = r.status === 'missing' ? 'broken' : (STATUS[r.status] || r.status);
+          return { name: r.name, status: mappedStatus, detail };
+        });
+        return Response.json({ available: true, configured: true, companies, cachedAt: cached.updatedAt });
+      }
+    } catch { /* fallback to live exec */ }
   }
 
   const stdout = await new Promise<string>((resolve) => {

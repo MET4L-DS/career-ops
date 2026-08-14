@@ -25,7 +25,7 @@
  * through an injectable `fetchJson`, so the pure logic is testable offline.
  */
 
-import { existsSync, readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname, resolve } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import * as yaml from 'js-yaml';
@@ -363,52 +363,77 @@ export async function probeProvider(entry, provider, baseCtx) {
  */
 export async function verifyCompanies(
   companies,
-  { fetchJson = defaultFetchJson, providers = null, httpCtx = null } = {},
+  { fetchJson = defaultFetchJson, providers = null, httpCtx = null, concurrency = 6, onResult = null } = {},
 ) {
-  const list = Array.isArray(companies) ? companies : [];
-  const results = [];
-  for (const company of list) {
-    if (!company || typeof company !== 'object') continue;
-    if (company.enabled === false) continue;
-    const name = typeof company.name === 'string' ? company.name : '(unnamed)';
-    const match =
-      parseAtsSlug(company.api) || parseAtsSlug(company.careers_url);
-    if (match) {
-      const probe = await probeSlug(match.ats, match.slug, { fetchJson, eu: match.eu });
-      if (probe.status === 'live' || probe.status === 'empty') {
-        results.push({ name, ...probe });
-        continue;
-      }
-      // Wrong slug or ATS migration — cross-probe only for slug/unknown failures.
-      if (probe.errorKind === 'slug_gone' || probe.errorKind === 'unknown') {
-        const suggested = await discoverAlternates(name, { fetchJson });
-        if (suggested) {
-          results.push({ name, ...probe, suggested });
-          continue;
+  const list = Array.isArray(companies) ? companies.filter(c => c && typeof c === 'object' && c.enabled !== false) : [];
+  const results = new Array(list.length);
+  let index = 0;
+
+  async function worker() {
+    while (index < list.length) {
+      const currentIndex = index++;
+      const company = list[currentIndex];
+      const name = typeof company.name === 'string' ? company.name : '(unnamed)';
+      let row;
+      const match =
+        parseAtsSlug(company.api) || parseAtsSlug(company.careers_url);
+      if (match) {
+        const probe = await probeSlug(match.ats, match.slug, { fetchJson, eu: match.eu });
+        if (probe.status === 'live' || probe.status === 'empty') {
+          row = { name, ...probe };
+        } else if (probe.errorKind === 'slug_gone' || probe.errorKind === 'unknown') {
+          const suggested = await discoverAlternates(name, { fetchJson });
+          if (suggested) {
+            row = { name, ...probe, suggested };
+          } else {
+            row = { name, ...probe };
+          }
+        } else {
+          row = { name, ...probe };
+        }
+      } else if (providers && providers.size > 0) {
+        const resolved = resolveProvider(company, providers, { skipIds: ['local-parser'] });
+        if (resolved && resolved.provider) {
+          const probe = await probeProvider(company, resolved.provider, httpCtx || makeHttpCtx());
+          row = { name, ...probe };
         }
       }
-      results.push({ name, ...probe });
-      continue;
-    }
 
-    // Tier 2: hand the entry to the scanner's provider layer. Skip the
-    // local-parser provider — a health check must stay network-only and never
-    // execute a configured local command.
-    if (providers && providers.size > 0) {
-      const resolved = resolveProvider(company, providers, { skipIds: ['local-parser'] });
-      if (resolved && resolved.provider) {
-        const probe = await probeProvider(company, resolved.provider, httpCtx || makeHttpCtx());
-        results.push({ name, ...probe });
-        continue;
+      if (!row) {
+        row = {
+          name,
+          status: 'skipped',
+          reason: 'no provider matched careers_url or api',
+        };
       }
-    }
 
-    results.push({
-      name,
-      status: 'skipped',
-      reason: 'no provider matched careers_url or api',
-    });
+      results[currentIndex] = row;
+      if (typeof onResult === 'function') onResult(row);
+
+      try {
+        const healthDir = resolve(dirname(DEFAULT_PORTALS_PATH), 'data');
+        if (existsSync(healthDir)) {
+          const completed = results.filter(Boolean);
+          const healthPath = resolve(healthDir, 'portal-health.json');
+          const healthData = {
+            updatedAt: new Date().toISOString(),
+            filePath: DEFAULT_PORTALS_PATH,
+            summary: {
+              live: completed.filter(r => r.status === 'live').length,
+              empty: completed.filter(r => r.status === 'empty').length,
+              missing: completed.filter(r => r.status === 'missing').length,
+              skipped: completed.filter(r => r.status === 'skipped').length,
+            },
+            results: completed,
+          };
+          writeFileSync(healthPath, JSON.stringify(healthData, null, 2), 'utf-8');
+        }
+      } catch { /* ignore incremental write error */ }
+    }
   }
+
+  const workers = Array.from({ length: Math.min(concurrency, list.length || 1) }, () => worker());
+  await Promise.all(workers);
   return results;
 }
 
@@ -422,14 +447,14 @@ export async function verifyCompanies(
  */
 export async function verifyPortalsFile(
   filePath,
-  { fetchJson = defaultFetchJson, providers = null, httpCtx = null } = {},
+  { fetchJson = defaultFetchJson, providers = null, httpCtx = null, concurrency = 6, onResult = null } = {},
 ) {
   if (!existsSync(filePath)) return { found: false, results: [] };
   const config = yaml.load(readFileSync(filePath, 'utf-8'));
   const companies = Array.isArray(config?.tracked_companies)
     ? config.tracked_companies
     : [];
-  const results = await verifyCompanies(companies, { fetchJson, providers, httpCtx });
+  const results = await verifyCompanies(companies, { fetchJson, providers, httpCtx, concurrency, onResult });
   return { found: true, results };
 }
 
@@ -443,26 +468,30 @@ const ERROR_KIND_LABEL = {
   unknown: 'unresolved',
 };
 
+function printSingleResult(r) {
+  const icon = ICON[r.status] || '?';
+  // ATS rows carry ats/slug; provider-layer rows carry the provider id.
+  const source = r.ats ? `${r.ats}/${r.slug}` : (r.provider || '?');
+  let detail;
+  if (r.status === 'live') {
+    detail = r.partial ? `${source} (first page live)` : `${source} (${r.jobCount} live)`;
+  } else if (r.status === 'empty') {
+    detail = `${source} (live but empty)`;
+  } else if (r.status === 'missing') {
+    const kind = ERROR_KIND_LABEL[r.errorKind] || 'unresolved';
+    detail = `${source} (${kind}) — ${r.reason || 'unresolved'}`;
+    if (r.suggested) {
+      detail += ` → try ${r.suggested.ats}/${r.suggested.slug}`;
+    }
+  } else {
+    detail = r.reason || '';
+  }
+  console.log(`  ${icon} ${r.name} — ${detail}`);
+}
+
 function printResults(results) {
   for (const r of results) {
-    const icon = ICON[r.status] || '?';
-    // ATS rows carry ats/slug; provider-layer rows carry the provider id.
-    const source = r.ats ? `${r.ats}/${r.slug}` : (r.provider || '?');
-    let detail;
-    if (r.status === 'live') {
-      detail = r.partial ? `${source} (first page live)` : `${source} (${r.jobCount} live)`;
-    } else if (r.status === 'empty') {
-      detail = `${source} (live but empty)`;
-    } else if (r.status === 'missing') {
-      const kind = ERROR_KIND_LABEL[r.errorKind] || 'unresolved';
-      detail = `${source} (${kind}) — ${r.reason || 'unresolved'}`;
-      if (r.suggested) {
-        detail += ` → try ${r.suggested.ats}/${r.suggested.slug}`;
-      }
-    } else {
-      detail = r.reason || '';
-    }
-    console.log(`  ${icon} ${r.name} — ${detail}`);
+    printSingleResult(r);
   }
 }
 
@@ -523,7 +552,13 @@ async function main() {
   // of an un-actionable "skipped".
   const providers = await loadProviders(PROVIDERS_DIR);
   const httpCtx = makeHttpCtx();
-  const { found, results } = await verifyPortalsFile(filePath, { fetchJson, providers, httpCtx });
+  console.log(`verify-portals: ${filePath}\n`);
+  const { found, results } = await verifyPortalsFile(filePath, {
+    fetchJson,
+    providers,
+    httpCtx,
+    onResult: (r) => printSingleResult(r),
+  });
   if (!found) {
     // Graceful no-op: fresh setups (and CI, which ships no portals.yml) have
     // nothing to verify. Not an error.
@@ -532,9 +567,6 @@ async function main() {
     );
     return;
   }
-
-  console.log(`verify-portals: ${filePath}\n`);
-  printResults(results);
 
   const live = results.filter((r) => r.status === 'live').length;
   const empty = results.filter((r) => r.status === 'empty').length;
@@ -554,6 +586,20 @@ async function main() {
   console.log(
     `\n${live} live, ${empty} live-but-empty, ${missing.length} unresolved${breakdown ? ` (${breakdown})` : ''}, ${skipped} no-provider (skipped)`,
   );
+
+  try {
+    const healthDir = resolve(dirname(filePath), 'data');
+    if (existsSync(healthDir)) {
+      const healthPath = resolve(healthDir, 'portal-health.json');
+      const healthData = {
+        updatedAt: new Date().toISOString(),
+        filePath,
+        summary: { live, empty, missing: missing.length, skipped },
+        results,
+      };
+      writeFileSync(healthPath, JSON.stringify(healthData, null, 2), 'utf-8');
+    }
+  } catch { /* ignore write failure */ }
 
   if (strict && missing.length > 0) {
     console.log('🔴 Unresolved slugs found (--strict).');
